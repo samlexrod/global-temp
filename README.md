@@ -19,7 +19,7 @@ This is the second data ingestion/pre-processing service of choice since I can c
 As data gets bigger, we are using Spark to clean and impute data into the dataset.
 
 The following script contains the cleaning python code in pyspark:
-[]()
+[data-cleaning.py](https://github.com/sammyrod/global-temp/blob/master/data-cleaning.py)
 
 **S3**
 This is the data storage service of choice, since it is cheap and scalable. By converting the files to parquet format and setting retention (or deep storage such as Glaxcier) policies for raw and staging files, we can manage to control cost and scale.
