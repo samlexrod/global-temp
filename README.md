@@ -133,16 +133,9 @@ run_quality_checks = DataQualityOperator(
 ## Data Gathering and Update Schedule
 
 **Data Gathering Steps**
-1. 
-
-Propose how often the data should be updated and why.
+Since http://berkeleyearth.org updates the source data on a montly basis, and we need to analyze the data as soon as it is available, we are updating the data on a monhtly basis.
 
 ## Elastic Data Handling Approach
-Write a description of how you would approach the problem differently under the following scenarios:
-The data was increased by 100x.
+In the event where data is increased by 100x, we are ready to scale by using spark clusters. We can increase the specs of the worker nodes as necessary or provide more worker nodes to handle the data. We could also setup autoscaling for our EMR spark clusters. Redshift can also handle the data at scale in a similar manner. We can scale up the clusters.
 
-## Process Scheduler
-The data populates a dashboard that must be updated on a daily basis by 7am every day.
-
-## Database Scalability
-The database needed to be accessed by 100+ people.
+Using Redshift Spectrum will allow more than 100+ people to access the data and the dashboards will be ready to be populated before 7am each morning since the data will be ready to go in the parquet-clean key of the s3 bucket.
