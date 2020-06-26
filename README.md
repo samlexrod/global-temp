@@ -138,8 +138,45 @@ Since http://berkeleyearth.org updates the source data on a montly basis, and we
 ## Elastic Data Handling Approach
 In the event where data is increased by 100x, we are ready to scale by using spark clusters. We can increase the specs of the worker nodes as necessary or provide more worker nodes to handle the data. We could also setup autoscaling for our EMR spark clusters. Redshift can also handle the data at scale in a similar manner. We can scale up the clusters.
 
-Using Redshift Spectrum will allow more than 100+ people to access the data and the dashboards will be ready to be populated before 7am each morning since the data will be ready to go in the parquet-clean key of the s3 bucket.
+Using Redshift Spectrum can allow more than 100+ people to access the data. Users will be able to query the data from redshift using their own credentials as the redshift admin can create users and permissions to schemas and tables for each user. To create these users the redshift admin will use the CREATE USER command. As more users query data from redshift, we will have to scale up the clusters.
 
+The dashboards will be ready to be populated before 7am each morning since the data will be ready to go in the parquet-clean key of the s3 bucket. A Airflow dag will orchestrate the process shown below in the data model. The PowerBi dashboard will be updated every day at 7am. By this time, the Airflow process will be done.
+
+##### Dag Task 1: AWS Lmabda Crawler
+> We are extracting data from the website using a Python request package. The outputs will be parsed as csv documents that will be stored in S3.
+
+##### Dag Task 2: Glue Spark Job or EMR Spark Job to Read Csv
+> The CSV data will be read using spark into a spark dataframe in EMR memory.
+
+##### Dag Task 3: Glue Spark Job or EMR Spark Job to Convert to Parquet
+> The EMR dataframe in memory is then converted to parquet to consume less resources when conducting transformations and cleaning activities. This step is separated from the rest because we would like to know if the transformation was succesful and the cleaning script runs without any issues. It would also let us know if we have already extracted the same date by the partition provided.
+
+##### Dag Task 4: EMR Job to Read Parquet and Clean Data
+> We are reading the parquet files and conducting the cleaning on parquet data since it is more efficient. This task will conbine reading parquet and celaning because we are not expecting the reading part to fail. On the contrary, we can expect the cleaning part to fail. Therefore we will know that the cleaning script needs to be evaluated for quality.
+
+##### Dag Task 5: A Postgress Hook queries the data and checks for quality
+> In this task we are doing to determine if the data is ready for downstream consumption and meets the quality requirements agreed. It is a separate task because we need to make sure that our downstream users are not consuming the wrong data.
+
+##### Dag Task 6: EMR Spark Job to Dump Clean Data and Crawled for Downstream
+> Here we are dumping the data that passess quality checks into the final bucket that will be catalogued using Glue and read using Redshift Spectrum as the endpoint of the visualization tool.
+
+> A Glue crawler will catalog the clean data after it is dumped in the destination s3 object/key.
+
+## Data Model
 The data model is as follows: 
 
 ![data_model](resources/udacity-dend-datamodel.png)
+
+Here is a more linear representation of the process:
+
+1. Data is crawled form original  http://berkeleyearth.org website using AWS Lambda
+2. Data is dumped into a s3 bucket in csv format in s3://world-temp-data/csv-files
+3. Data is read using a spark cluster using pyspark and converted into parquet in s3://world-temp-data/parquet-staging
+4. Data is read using a spark cluster using pyspark and transformed/cleaned
+5. Data is check for null values and duplicates using a spark cluster
+6. Quality checks are conducted:
+    a. If data pass all quality checks, it is dumped into into s3://world-temp-data/parquet-clean as parquet
+    b. If data does not pass quality checks, the error is sent by email to users and the process stops
+7. A Glue crawler catalogs the parquet files in s3://world-temp-data/parquet-clean as parquet in the Glue global_temp database
+8. Redshift Spectrum refers to the clean-data table in the global_temp database in a global_temp_db redshift database
+9. Power BI connects to Redshift and extracts the clean-data table from the global_temp_db using a Redshift Driver.
